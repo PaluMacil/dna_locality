@@ -128,12 +128,7 @@ std::vector<char> ReadFile(std::ifstream inFile) {
     // The initial (I) row and column are all initialized to a 0 score
     strand.push_back('I');
 
-    char currentChar;
-    // iterate through chars
-    while (inFile.get(currentChar)) {
-        if (inFile.eof()) {
-            break;
-        }
+    for (char currentChar; !inFile.eof(); inFile.get(currentChar)) {
         // only grab valid characters and the wildcard (?)
         if (currentChar == 'A' || currentChar == 'G' || currentChar == 'T' ||
             currentChar == 'C' || currentChar == '?') {
