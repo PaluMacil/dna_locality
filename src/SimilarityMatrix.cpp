@@ -3,6 +3,8 @@
 
 #include <cstring>
 #include <chrono>
+#include <iterator>
+#include <sstream>
 #include "SimilarityMatrix.h"
 
 Score MaxScore(const std::vector<Score> &scores) {
@@ -20,6 +22,7 @@ SimilarityMatrix::SimilarityMatrix(const char *filename1, const char *filename2,
         : inFile1(filename1, std::ifstream::binary),
           inFile2(filename2, std::ifstream::binary),
           outFile() {
+    best = {None, 0, 0, 0};
     if (!inFile1) {
         throw "could not open inFile1";
     }
@@ -75,8 +78,54 @@ double SimilarityMatrix::Fill() {
     return duration_cast<std::chrono::nanoseconds>(t2 - t1).count();
 }
 
-std::string SimilarityMatrix::Calculate() {
-    return std::string();
+std::string SimilarityMatrix::MatchString() {
+    std::vector<char> finalT;
+    std::vector<char> finalS;
+
+    // sequence after match of t
+    for (int i = strandS.size() - 1; i > best.Location.i; i--) {
+        finalS.insert(finalS.begin(), strandS[i]);
+    }
+
+    // keep track of first matched place in sequence
+    int firstMatchedIndex = best.Location.i;
+    // match space
+    for (LocatedScore s = best; s.Value > 0; s = At(s.Next())) {
+        switch (s.direction) {
+            case North:
+                finalT.insert(finalT.begin(), '-');
+                finalS.insert(finalS.begin(), strandS[s.Location.i]);
+                firstMatchedIndex = s.Location.i;
+                break;
+            case Northwest:
+                finalT.insert(finalT.begin(), strandT[s.Location.j]);
+                finalS.insert(finalS.begin(), strandS[s.Location.i]);
+                firstMatchedIndex = s.Location.i;
+                break;
+            case West:
+                finalT.insert(finalT.begin(), strandT[s.Location.j]);
+                finalS.insert(finalS.begin(), '-');
+                break;
+            case None:
+                break;
+        }
+    }
+
+    // sequence before match of t
+    for (int i = firstMatchedIndex - 1; i > 0; i--) {
+        finalS.insert(finalS.begin(), strandS[i]);
+        finalT.insert(finalT.begin(), ' ');
+    }
+
+    std::stringstream ss;
+    ss << "Sequence (s):\t";
+    for (auto p: finalS) { ss << p << ' '; }
+    ss << '\n';
+    ss << "Unknown (t):\t";
+    for (auto p: finalT) { ss << p << ' '; }
+    ss << '\n';
+
+    return ss.str();
 }
 
 void SimilarityMatrix::score(int i, int j) {
@@ -87,7 +136,6 @@ void SimilarityMatrix::score(int i, int j) {
     scores.push_back(westScore);
 
     // F(s[1..i-1],t[1..j-1])+(if s[i]=t[j] then 1 else - 1)
-    // TODO: compare i+1 and j+1 in strands to account for offset from corner of grid
     int predicate = strandS[i] == strandT[j] ? 1 : -1;
     Score northwestScore = {Northwest, matrix[i - 1][j - 1] + predicate};
     scores.push_back(northwestScore);
@@ -99,6 +147,12 @@ void SimilarityMatrix::score(int i, int j) {
     auto max = MaxScore(scores);
     matrix[i][j] = max.Value;
     directions[i][j] = max.direction;
+    // save if best score in matrix (replace if equal, as furthest bottom right value wins)
+    if (max.Value >= best.Value) {
+        best.Location = {.i = i, .j = j};
+        best.direction = max.direction;
+        best.Value = max.Value;
+    }
 }
 
 void SimilarityMatrix::printOut() {
@@ -120,7 +174,18 @@ void SimilarityMatrix::printOut() {
             }
             outFile << '\n';
         }
+        outFile << '\n' << "max = " << best.Value << ",\ti = " << best.Location.i << ",\tj = " << best.Location.j << '\n';
+        outFile << MatchString();
     }
+}
+
+LocatedScore SimilarityMatrix::At(Coordinates location) {
+    LocatedScore locatedScore{};
+    locatedScore.Location = location;
+    locatedScore.direction= directions[location.i][location.j];
+    locatedScore.Value = matrix[location.i][location.j];
+
+    return locatedScore;
 }
 
 std::vector<char> ReadFile(std::ifstream inFile) {

@@ -6,17 +6,11 @@
 
 #include <fstream>
 #include <vector>
+#include "LocatedScore.h"
 
 std::vector<char> ReadFile(std::ifstream inFile);
 
-enum Direction {
-    None, North, West, Northwest
-};
 
-struct Score {
-    Direction direction;
-    int Value;
-};
 
 class SimilarityMatrix {
 private:
@@ -27,6 +21,7 @@ private:
     std::vector<char> strandS;
     std::vector<std::vector<int>> matrix;
     std::vector<std::vector<Direction>> directions;
+    LocatedScore best;
     bool printOutput;
 
     void score(int i, int j);
@@ -41,7 +36,9 @@ public:
 
     double Fill();
 
-    std::string Calculate();
+    std::string MatchString();
+
+    LocatedScore At(Coordinates location);
 };
 
 

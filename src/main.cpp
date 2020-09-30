@@ -1,9 +1,6 @@
 // Dan Wolf
 // main.cpp
 
-#include <iostream>
-#include <cctype>
-#include <algorithm>
 #include <string>
 #include <cstring>
 #include "SimilarityMatrix.h"
