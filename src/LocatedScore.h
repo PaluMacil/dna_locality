@@ -1,6 +1,5 @@
-//
-// Created by dan on 2020-09-29.
-//
+// Dan Wolf
+// LocatedScore.h
 
 #ifndef DNA_LOCALITY_LOCATEDSCORE_H
 #define DNA_LOCALITY_LOCATEDSCORE_H

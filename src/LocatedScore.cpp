@@ -1,6 +1,5 @@
-//
-// Created by dan on 2020-09-29.
-//
+// Dan Wolf
+// LocatedScore.cpp
 
 #include "LocatedScore.h"
 
