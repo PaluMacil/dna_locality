@@ -57,16 +57,23 @@ double SimilarityMatrix::Fill() {
     // expand i vector (rows) by size of strand 2
     matrix.resize(strandS.size());
     directions.resize(strandS.size());
+
+
     for (int i = 0; i < strandS.size(); i++) {
         // expand j vector (columns) by size of strand 1, initialize all scores to 0
         matrix[i].resize(strandT.size(), 0);
         directions[i].resize(strandT.size(), None);
         for (int j = 0; j < strandT.size(); j++) {
-            // if in a cell initialized to 0 (first column and row), skip other calculations
-            if (i == 0 || j == 0) {
-                continue;
+#pragma omp parallel
+            {
+#pragma omp task shared(i, strandS, strandT, j) depend(in:this->matrix[i - 1][j], this->matrix[i][j - 1], this->matrix[i - 1][j - 1]) depend(out:this->matrix[i][j])
+                {
+                    // if in a cell initialized to 0 (first column and row), skip other calculations
+                    if (!(i == 0 || j == 0)) {
+                        score(i, j);
+                    }
+                }
             }
-            score(i, j);
         }
     }
 
@@ -138,7 +145,7 @@ void SimilarityMatrix::score(int i, int j) {
     // F(s[1..i-1],t[1..j-1])+(if s[i]=t[j] then 1 else - 1)
     // '?' is a wildcard and always matches the other value
     int predicate = (strandS[i] == strandT[j] || strandS[i] == '?' || strandS[j] == '?')
-            ? 1 : -1;
+                    ? 1 : -1;
     Score northwestScore = {Northwest, matrix[i - 1][j - 1] + predicate};
     scores.push_back(northwestScore);
 
@@ -150,11 +157,14 @@ void SimilarityMatrix::score(int i, int j) {
     matrix[i][j] = max.Value;
     directions[i][j] = max.direction;
     // save if best score in matrix (replace if equal, as furthest bottom right value wins)
-    if (max.Value >= best.Value) {
-        best.Location = {.i = i, .j = j};
-        best.direction = max.direction;
-        best.Value = max.Value;
-    }
+#pragma omp critital
+    {
+        if (max.Value >= best.Value) {
+            best.Location = {.i = i, .j = j};
+            best.direction = max.direction;
+            best.Value = max.Value;
+        }
+    };
 }
 
 void SimilarityMatrix::printOut() {
@@ -176,7 +186,8 @@ void SimilarityMatrix::printOut() {
             }
             outFile << '\n';
         }
-        outFile << '\n' << "max = " << best.Value << ",\ti = " << best.Location.i << ",\tj = " << best.Location.j << '\n';
+        outFile << '\n' << "max = " << best.Value << ",\ti = " << best.Location.i << ",\tj = " << best.Location.j
+                << '\n';
         outFile << MatchString();
     }
 }
@@ -184,7 +195,7 @@ void SimilarityMatrix::printOut() {
 LocatedScore SimilarityMatrix::At(Coordinates location) {
     LocatedScore locatedScore{};
     locatedScore.Location = location;
-    locatedScore.direction= directions[location.i][location.j];
+    locatedScore.direction = directions[location.i][location.j];
     locatedScore.Value = matrix[location.i][location.j];
 
     return locatedScore;
