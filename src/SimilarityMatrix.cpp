@@ -136,7 +136,9 @@ void SimilarityMatrix::score(int i, int j) {
     scores.push_back(westScore);
 
     // F(s[1..i-1],t[1..j-1])+(if s[i]=t[j] then 1 else - 1)
-    int predicate = strandS[i] == strandT[j] ? 1 : -1;
+    // '?' is a wildcard and always matches the other value
+    int predicate = (strandS[i] == strandT[j] || strandS[i] == '?' || strandS[j] == '?')
+            ? 1 : -1;
     Score northwestScore = {Northwest, matrix[i - 1][j - 1] + predicate};
     scores.push_back(northwestScore);
 
