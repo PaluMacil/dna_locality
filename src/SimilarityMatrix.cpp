@@ -64,14 +64,39 @@ double SimilarityMatrix::Fill() {
         matrix[i].resize(strandT.size(), 0);
         directions[i].resize(strandT.size(), None);
         for (int j = 0; j < strandT.size(); j++) {
-#pragma omp parallel
+#pragma omp task shared(i, strandS, strandT, j) depend(in:this->matrix[i - 1][j], this->matrix[i][j - 1]) depend(out:this->matrix[i][j]) default(none)
             {
-#pragma omp task shared(i, strandS, strandT, j) depend(in:this->matrix[i - 1][j], this->matrix[i][j - 1], this->matrix[i - 1][j - 1]) depend(out:this->matrix[i][j])
-                {
-                    // if in a cell initialized to 0 (first column and row), skip other calculations
-                    if (!(i == 0 || j == 0)) {
-                        score(i, j);
-                    }
+                // if in a cell initialized to 0 (first column and row), skip other calculations
+                if (!(i == 0 || j == 0)) {
+                    std::vector<Score> scores;
+
+                    // F(s[1..i],t[1..j-1])-2
+                    Score westScore = {West, matrix[i][j - 1] - 2};
+                    scores.push_back(westScore);
+
+                    // F(s[1..i-1],t[1..j-1])+(if s[i]=t[j] then 1 else - 1)
+                    // '?' is a wildcard and always matches the other value
+                    int predicate = (strandS[i] == strandT[j] || strandS[i] == '?' || strandS[j] == '?')
+                                    ? 1 : -1;
+                    Score northwestScore = {Northwest, matrix[i - 1][j - 1] + predicate};
+                    scores.push_back(northwestScore);
+
+                    // F(s[1..i-1],t[1..j])-2
+                    Score northScore = {North, matrix[i - 1][j] - 2};
+                    scores.push_back(northScore);
+
+                    auto max = MaxScore(scores);
+                    matrix[i][j] = max.Value;
+                    directions[i][j] = max.direction;
+                    // save if best score in matrix (replace if equal, as furthest bottom right value wins)
+#pragma omp critical
+                    {
+                        if (max.Value >= best.Value) {
+                            best.Location = {.i = i, .j = j};
+                            best.direction = max.direction;
+                            best.Value = max.Value;
+                        }
+                    };
                 }
             }
         }
@@ -136,35 +161,7 @@ std::string SimilarityMatrix::MatchString() {
 }
 
 void SimilarityMatrix::score(int i, int j) {
-    std::vector<Score> scores;
 
-    // F(s[1..i],t[1..j-1])-2
-    Score westScore = {West, matrix[i][j - 1] - 2};
-    scores.push_back(westScore);
-
-    // F(s[1..i-1],t[1..j-1])+(if s[i]=t[j] then 1 else - 1)
-    // '?' is a wildcard and always matches the other value
-    int predicate = (strandS[i] == strandT[j] || strandS[i] == '?' || strandS[j] == '?')
-                    ? 1 : -1;
-    Score northwestScore = {Northwest, matrix[i - 1][j - 1] + predicate};
-    scores.push_back(northwestScore);
-
-    // F(s[1..i-1],t[1..j])-2
-    Score northScore = {North, matrix[i - 1][j] - 2};
-    scores.push_back(northScore);
-
-    auto max = MaxScore(scores);
-    matrix[i][j] = max.Value;
-    directions[i][j] = max.direction;
-    // save if best score in matrix (replace if equal, as furthest bottom right value wins)
-#pragma omp critital
-    {
-        if (max.Value >= best.Value) {
-            best.Location = {.i = i, .j = j};
-            best.direction = max.direction;
-            best.Value = max.Value;
-        }
-    };
 }
 
 void SimilarityMatrix::printOut() {
